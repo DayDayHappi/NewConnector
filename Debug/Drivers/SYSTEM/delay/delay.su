@@ -1,0 +1,3 @@
+../Drivers/SYSTEM/delay/delay.c:96:6:delay_init	16	static
+../Drivers/SYSTEM/delay/delay.c:121:6:delay_us	40	static
+../Drivers/SYSTEM/delay/delay.c:165:6:delay_ms	16	static
