@@ -20,12 +20,15 @@
 #include "main.h"
 #include "adc.h"
 #include "dma.h"
+#include "i2c.h"
 #include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "./mq4/mq4.h"
+#include "./AHT20/AHT20.h"
+#include "./MPU6050/mpu6050.h"
 #include "../../SYSTEM/delay/delay.h"
 #include "../../SYSTEM/sys/sys.h"
 /* USER CODE END Includes */
@@ -78,6 +81,10 @@ int main(void)
     uint16_t adcx;
     uint32_t sum;
     float temp;
+    float temperature,humidity;
+    char message[50];
+
+    int16_t ax, ay, az, gx, gy, gz, tempu;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -101,10 +108,13 @@ int main(void)
   MX_DMA_Init();
   MX_ADC1_Init();
   MX_USART1_UART_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   HAL_DMA_Start_IT(&hdma_adc1, (uint32_t)&ADC1->DR, (uint32_t)&g_adc_dma_buf, 0);	/* 启动DMA，并开启中断 */
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&g_adc_dma_buf, 0);           	/* 开启ADC，通过DMA传输结果 */
   adc_dma_enable(ADC_DMA_BUF_SIZE);   /* 启动ADC DMA采集 */
+  AHT20_Init();
+  MPU6050_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -138,6 +148,12 @@ int main(void)
 	  		  g_adc_dma_sta = 0;                      /* 清除DMA采集完成状态标志 */
 	  		  adc_dma_enable(ADC_DMA_BUF_SIZE);       /* 启动下一次ADC DMA采集 */
 	  	  }
+	  AHT20_Read(&temperature, &humidity);									//读取数据
+	  sprintf(message,"temp:%.1f , hum:%.1f %%\r\n",temperature, humidity); //组合字符串
+	  printf(message);
+	  MPU6050_Read(&ax, &ay, &az, &gx, &gy, &gz, &tempu);
+	  sprintf(message,"ax:%d, ay:%d, az:%d, gx:%d, gy:%d, gz:%d, tempu:%d\r\n",ax, ay, az, gx, gy, gz, tempu); //组合字符串
+	  printf(message);
 	  HAL_Delay(1000);
     /* USER CODE END WHILE */
 

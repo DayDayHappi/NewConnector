@@ -13,6 +13,8 @@ RM := rm -rf
 -include Drivers/SYSTEM/delay/subdir.mk
 -include Drivers/STM32F1xx_HAL_Driver/Src/subdir.mk
 -include Drivers/BSP/mq4/subdir.mk
+-include Drivers/BSP/MPU6050/subdir.mk
+-include Drivers/BSP/AHT20/subdir.mk
 -include Core/Startup/subdir.mk
 -include Core/Src/subdir.mk
 -include objects.mk
@@ -63,8 +65,8 @@ all: main-build
 main-build: New.elf secondary-outputs
 
 # Tool invocations
-New.elf New.map: $(OBJS) $(USER_OBJS) G:\STM32OnlyREAD_WS\New\STM32F103ZCTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "New.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"G:\STM32OnlyREAD_WS\New\STM32F103ZCTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="New.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+New.elf New.map: $(OBJS) $(USER_OBJS) G:\github\new\NewConnector\STM32F103ZCTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "New.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m3 -T"G:\github\new\NewConnector\STM32F103ZCTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="New.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -u _printf_float -u _scanf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

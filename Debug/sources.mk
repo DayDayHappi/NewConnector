@@ -24,6 +24,8 @@ C_DEPS :=
 SUBDIRS := \
 Core/Src \
 Core/Startup \
+Drivers/BSP/AHT20 \
+Drivers/BSP/MPU6050 \
 Drivers/BSP/mq4 \
 Drivers/STM32F1xx_HAL_Driver/Src \
 Drivers/SYSTEM/delay \
