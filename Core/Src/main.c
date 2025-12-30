@@ -60,7 +60,9 @@ MQ4_HandleTypeDef mq4;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-#define ADC_DMA_BUF_SIZE        50*5         /* ADC DMA采集 BUF大小 */
+#define ADC_NbrOfCHN 3
+#define ADC_SizeOfCHN 30
+#define ADC_DMA_BUF_SIZE        ADC_NbrOfCHN*ADC_SizeOfCHN         /* ADC DMA采集 BUF大小 */
 uint16_t g_adc_dma_buf[ADC_DMA_BUF_SIZE];   /* ADC DMA BUF */
 extern uint8_t g_adc_dma_sta;               /* DMA传输状态标志, 0,未完成; 1, 已完成 */
 /* USER CODE END PFP */
@@ -129,14 +131,14 @@ int main(void)
 	  if (g_adc_dma_sta == 1)
 	  	  {
 	  		  /* 循环显示通道4~通道5的结果 */
-	  		  for(j = 0; j < 5; j++)  /* 遍历5个通道 */
+	  		  for(j = 0; j < ADC_NbrOfCHN; j++)  /* 遍历5个通道 */
 	  		  {
 	  			  sum = 0; /* 清零 */
-	  			  for (i = 0; i < ADC_DMA_BUF_SIZE / 5; i++)  /* 每个通道采集了10次数据,进行10次累加 */
+	  			  for (i = 0; i < ADC_DMA_BUF_SIZE / ADC_NbrOfCHN; i++)  /* 每个通道采集了10次数据,进行10次累加 */
 	  			  {
-	  				  sum += g_adc_dma_buf[(5 * i) + j];      /* 相同通道的转换数据累加 */
+	  				  sum += g_adc_dma_buf[(ADC_NbrOfCHN * i) + j];      /* 相同通道的转换数据累加 */
 	  			  }
-	  			  adcx = sum / (ADC_DMA_BUF_SIZE / 5);        /* 取平均值 */
+	  			  adcx = sum / (ADC_DMA_BUF_SIZE / ADC_NbrOfCHN);        /* 取平均值 */
 
 	  			  /* 显示结果 */
 	  			  //lcd_show_xnum(108, 110 + (j * 30), adcx, 4, 12, 0, BLUE);   /* 显示ADCC采样后的原始值 */
