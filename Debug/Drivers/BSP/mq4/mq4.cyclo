@@ -1,3 +1,0 @@
-../Drivers/BSP/mq4/mq4.c:12:19:MQ4_Init	3
-../Drivers/BSP/mq4/mq4.c:24:10:MQ4_ReadADC_Avg	2
-../Drivers/BSP/mq4/mq4.c:40:7:MQ4_GetPPM	5
