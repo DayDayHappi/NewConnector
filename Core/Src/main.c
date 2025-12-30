@@ -31,6 +31,7 @@
 #include "./MPU6050/mpu6050.h"
 #include "../../SYSTEM/delay/delay.h"
 #include "../../SYSTEM/sys/sys.h"
+#include "./st25dv/st25dv.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -113,6 +114,10 @@ int main(void)
   HAL_DMA_Start_IT(&hdma_adc1, (uint32_t)&ADC1->DR, (uint32_t)&g_adc_dma_buf, 0);	/* 启动DMA，并开启中断 */
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&g_adc_dma_buf, 0);           	/* 开启ADC，通过DMA传输结果 */
   adc_dma_enable(ADC_DMA_BUF_SIZE);   /* 启动ADC DMA采集 */
+  HAL_StatusTypeDef st = ST25DV_WriteCloudURL();
+  if(st != HAL_OK) {
+	  printf("ST25DV write failed\r\n");
+  }
   AHT20_Init();
   MPU6050_Init();
   /* USER CODE END 2 */
