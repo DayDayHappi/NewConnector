@@ -43,7 +43,9 @@ MQ4_HandleTypeDef mq4;
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define AT_BUF_SIZE 256
+char at_rx_buf[AT_BUF_SIZE];  // 接收缓冲区
+uint8_t rx_buf[256];  // 临时接收缓冲区
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -65,10 +67,66 @@ void SystemClock_Config(void);
 #define ADC_DMA_BUF_SIZE        ADC_NbrOfCHN*ADC_SizeOfCHN         /* ADC DMA采集 BUF大小 */
 uint16_t g_adc_dma_buf[ADC_DMA_BUF_SIZE];   /* ADC DMA BUF */
 extern uint8_t g_adc_dma_sta;               /* DMA传输状态标志, 0,未完成; 1, 已完成 */
+#define PackSize 50
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+uint8_t tx_buf[] =
+{
+    0x43, 0x4E, 0x00, 0x00, 0x41, 0x16, 0x44, 0x16, 0x44, 0x16,
+    0x44, 0x00, 0x32, 0x00, 0x32, 0x00, 0x32, 0x0D, 0x0A,
+    0x42, 0x19, 0x0C, 0x1A, 0x37, 0x1B, 0x00, 0x1C, 0x21,
+    0x1D, 0x5A, 0x1E, 0x00, 0x3C, 0x2D, 0x3D, 0x0A,
+    0x03, 0x78, 0x03, 0x79, 0x0D, 0x0A,
+    0x43, 0x03, 0x6C, 0x03, 0x8B, 0x08, 0x50, 0x19,
+    0x00, 0x23, 0x3C, 0x0D, 0x0A,
+    0x44, 0x01, 0x00, 0x01, 0x01, 0x00, 0x01, 0x00,
+    0x00, 0x02, 0x0D, 0x0A
+};
+
+HAL_StatusTypeDef AT_SendCmd(const char *cmd, const char *expect, uint32_t timeout)
+{
+    memset(at_rx_buf, 0, AT_BUF_SIZE);
+    HAL_UART_Transmit(&huart2, (uint8_t*)cmd, strlen(cmd), 1000);
+    uint32_t tickstart = HAL_GetTick();
+    uint16_t i = 0;
+    while ((HAL_GetTick() - tickstart) < timeout)
+    {
+        uint8_t ch;
+        if (HAL_UART_Receive(&huart2, &ch, 1, 10) == HAL_OK)
+        {
+            if (i < AT_BUF_SIZE - 1)
+                at_rx_buf[i++] = ch;
+
+            if (strstr(at_rx_buf, expect))
+            {
+            	printf("Recv From Moudle: %s\r\n",at_rx_buf);
+            	return HAL_OK;
+            }
+        }
+    }
+    printf("AT timeout: %s\r\n", cmd);
+    return HAL_TIMEOUT;
+}
+
+HAL_StatusTypeDef LTE_Module_Init(void)
+{
+    if (AT_SendCmd("AT+CPIN?\r\n", "+CPIN: READY", 3000) != HAL_OK) return HAL_ERROR;
+    HAL_Delay(1000);
+    if (AT_SendCmd("AT+C5GREG?\r\n", "+C5GREG: 0,1", 5000) != HAL_OK) return HAL_ERROR;
+    HAL_Delay(1000);
+    if (AT_SendCmd("AT+QICSGP=1,1,\"CMNET\",\"\",\"\",0\r\n", "OK", 3000) != HAL_OK) return HAL_ERROR;
+    HAL_Delay(1000);
+    if (AT_SendCmd("AT+QIACT=1\r\n", "OK", 5000) != HAL_OK) return HAL_ERROR;
+    HAL_Delay(1000);
+    if (AT_SendCmd("AT+QIACT?\r\n", "+QIACT:", 3000) != HAL_OK) return HAL_ERROR;
+    HAL_Delay(1000);
+    if (AT_SendCmd("AT+QIOPEN=1,0,\"TCP\",\"120.46.133.240\",51000,0,2\r\n", "CONNECT", 8000) != HAL_OK) return HAL_ERROR;
+
+    printf("5G module initialization complete.\r\n");
+    return HAL_OK;
+}
 
 /* USER CODE END 0 */
 
@@ -88,6 +146,8 @@ int main(void)
     char message[50];
 
     int16_t ax, ay, az, gx, gy, gz, tempu;
+
+    uint8_t global_pack[PackSize];
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -112,6 +172,9 @@ int main(void)
   MX_ADC1_Init();
   MX_USART1_UART_Init();
   MX_I2C1_Init();
+  MX_USART2_UART_Init();
+  MX_USART3_UART_Init();
+  MX_UART4_Init();
   /* USER CODE BEGIN 2 */
   HAL_DMA_Start_IT(&hdma_adc1, (uint32_t)&ADC1->DR, (uint32_t)&g_adc_dma_buf, 0);	/* 启动DMA，并开启中断 */
   HAL_ADC_Start_DMA(&hadc1, (uint32_t*)&g_adc_dma_buf, 0);           	/* 开启ADC，通过DMA传输结果 */
@@ -122,6 +185,21 @@ int main(void)
   }
   AHT20_Init();
   MPU6050_Init();
+
+//  while(1)
+//  {
+//    printf("Starting 5G module init...\r\n");
+//    if (LTE_Module_Init() == HAL_OK)
+//    {
+//       printf("LTE module connected successfully!\r\n");
+//       break;
+//    }
+//    else
+//    {
+//      printf("LTE module init failed!\r\n");
+//   	  HAL_Delay(2000);  // 延迟2秒再试一次，避免刷屏或模块过载
+//    }
+//  }
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -141,15 +219,13 @@ int main(void)
 	  			  adcx = sum / (ADC_DMA_BUF_SIZE / ADC_NbrOfCHN);        /* 取平均值 */
 
 	  			  /* 显示结果 */
-	  			  //lcd_show_xnum(108, 110 + (j * 30), adcx, 4, 12, 0, BLUE);   /* 显示ADCC采样后的原始值 */
 	  			  printf("channel%d = %d\r\n",j,adcx);
 	  			  temp = (float)adcx * (3.3 / 4096);  /* 获取计算后的带小数的实际电压值，比如3.1111 */
 	  			  adcx = temp;                        /* 赋值整数部分给adcx变量，因为adcx为u16整形 */
-	  			  //lcd_show_xnum(108, 122 + (j * 30), adcx, 1, 12, 0, BLUE);   /* 显示电压值的整数部分，3.1111的话，这里就是显示3 */
 
 	  			  temp -= adcx;                       /* 把已经显示的整数部分去掉，留下小数部分，比如3.1111-3=0.1111 */
 	  			  temp *= 1000;                       /* 小数部分乘以1000，例如：0.1111就转换为111.1，相当于保留三位小数。 */
-	  			  //lcd_show_xnum(120, 122 + (j * 30), temp, 3, 12, 0X80, BLUE);/* 显示小数部分（前面转换为了整形显示），这里显示的就是111. */
+
 	  		  }
 
 	  		  g_adc_dma_sta = 0;                      /* 清除DMA采集完成状态标志 */
@@ -161,7 +237,38 @@ int main(void)
 	  MPU6050_Read(&ax, &ay, &az, &gx, &gy, &gz, &tempu);
 	  sprintf(message,"ax:%d, ay:%d, az:%d, gx:%d, gy:%d, gz:%d, tempu:%d\r\n",ax, ay, az, gx, gy, gz, tempu); //组合字符串
 	  printf(message);
-	  HAL_Delay(1000);
+	  HAL_UART_Transmit(&huart2,
+	                    tx_buf,
+	                    sizeof(tx_buf),
+	                    500);
+	  HAL_Delay(3000);
+	  //	   ==== 调试接收 5G 模块的应答 ====
+	  	  memset(rx_buf, 0, sizeof(rx_buf));
+	  	  uint16_t rx_len = 0;
+	  	  uint32_t tickstart = HAL_GetTick();
+	  	  while ((HAL_GetTick() - tickstart) < 5000)  // 最多等 1 秒
+	  	  {
+	  	      uint8_t ch;
+	  	      if (HAL_UART_Receive(&huart2, &ch, 1, 10) == HAL_OK)
+	  	      {
+	  	          if (rx_len < sizeof(rx_buf) - 1)
+	  	              rx_buf[rx_len++] = ch;
+	  	      }
+	  	      else
+	  	      {
+	  	          // 超时没收到字节，就继续循环
+	  	      }
+	  	  }
+	  	  // 如果收到内容，就打印
+	  	  if (rx_len > 0)
+	  	  {
+	  	      rx_buf[rx_len] = '\0';  // 确保字符串结束
+	  	      printf("5G Module reply: %s\r\n", rx_buf);
+	  	  }
+	  	  else
+	  	  {
+	  	      printf("No reply from 5G module\r\n");
+	  	  }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
