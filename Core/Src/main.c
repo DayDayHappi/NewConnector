@@ -85,49 +85,6 @@ uint8_t tx_buf[] =
     0x00, 0x02, 0x0D, 0x0A
 };
 
-HAL_StatusTypeDef AT_SendCmd(const char *cmd, const char *expect, uint32_t timeout)
-{
-    memset(at_rx_buf, 0, AT_BUF_SIZE);
-    HAL_UART_Transmit(&huart2, (uint8_t*)cmd, strlen(cmd), 1000);
-    uint32_t tickstart = HAL_GetTick();
-    uint16_t i = 0;
-    while ((HAL_GetTick() - tickstart) < timeout)
-    {
-        uint8_t ch;
-        if (HAL_UART_Receive(&huart2, &ch, 1, 10) == HAL_OK)
-        {
-            if (i < AT_BUF_SIZE - 1)
-                at_rx_buf[i++] = ch;
-
-            if (strstr(at_rx_buf, expect))
-            {
-            	printf("Recv From Moudle: %s\r\n",at_rx_buf);
-            	return HAL_OK;
-            }
-        }
-    }
-    printf("AT timeout: %s\r\n", cmd);
-    return HAL_TIMEOUT;
-}
-
-HAL_StatusTypeDef LTE_Module_Init(void)
-{
-    if (AT_SendCmd("AT+CPIN?\r\n", "+CPIN: READY", 3000) != HAL_OK) return HAL_ERROR;
-    HAL_Delay(1000);
-    if (AT_SendCmd("AT+C5GREG?\r\n", "+C5GREG: 0,1", 5000) != HAL_OK) return HAL_ERROR;
-    HAL_Delay(1000);
-    if (AT_SendCmd("AT+QICSGP=1,1,\"CMNET\",\"\",\"\",0\r\n", "OK", 3000) != HAL_OK) return HAL_ERROR;
-    HAL_Delay(1000);
-    if (AT_SendCmd("AT+QIACT=1\r\n", "OK", 5000) != HAL_OK) return HAL_ERROR;
-    HAL_Delay(1000);
-    if (AT_SendCmd("AT+QIACT?\r\n", "+QIACT:", 3000) != HAL_OK) return HAL_ERROR;
-    HAL_Delay(1000);
-    if (AT_SendCmd("AT+QIOPEN=1,0,\"TCP\",\"120.46.133.240\",51000,0,2\r\n", "CONNECT", 8000) != HAL_OK) return HAL_ERROR;
-
-    printf("5G module initialization complete.\r\n");
-    return HAL_OK;
-}
-
 /* USER CODE END 0 */
 
 /**
@@ -185,21 +142,10 @@ int main(void)
   }
   AHT20_Init();
   MPU6050_Init();
-
-//  while(1)
-//  {
-//    printf("Starting 5G module init...\r\n");
-//    if (LTE_Module_Init() == HAL_OK)
-//    {
-//       printf("LTE module connected successfully!\r\n");
-//       break;
-//    }
-//    else
-//    {
-//      printf("LTE module init failed!\r\n");
-//   	  HAL_Delay(2000);  // 延迟2秒再试一次，避免刷屏或模块过载
-//    }
-//  }
+  //蜂鸣器调试
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
+  HAL_Delay(3000);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -219,13 +165,11 @@ int main(void)
 	  			  adcx = sum / (ADC_DMA_BUF_SIZE / ADC_NbrOfCHN);        /* 取平均值 */
 
 	  			  /* 显示结果 */
-	  			  printf("channel%d = %d\r\n",j,adcx);
+	  			  //printf("channel%d = %d\r\n",j,adcx);
 	  			  temp = (float)adcx * (3.3 / 4096);  /* 获取计算后的带小数的实际电压值，比如3.1111 */
 	  			  adcx = temp;                        /* 赋值整数部分给adcx变量，因为adcx为u16整形 */
-
 	  			  temp -= adcx;                       /* 把已经显示的整数部分去掉，留下小数部分，比如3.1111-3=0.1111 */
 	  			  temp *= 1000;                       /* 小数部分乘以1000，例如：0.1111就转换为111.1，相当于保留三位小数。 */
-
 	  		  }
 
 	  		  g_adc_dma_sta = 0;                      /* 清除DMA采集完成状态标志 */
@@ -233,15 +177,14 @@ int main(void)
 	  	  }
 	  AHT20_Read(&temperature, &humidity);									//读取数据
 	  sprintf(message,"temp:%.1f , hum:%.1f %%\r\n",temperature, humidity); //组合字符串
-	  printf(message);
+	  //printf(message);
 	  MPU6050_Read(&ax, &ay, &az, &gx, &gy, &gz, &tempu);
 	  sprintf(message,"ax:%d, ay:%d, az:%d, gx:%d, gy:%d, gz:%d, tempu:%d\r\n",ax, ay, az, gx, gy, gz, tempu); //组合字符串
-	  printf(message);
+	  //printf(message);
 	  HAL_UART_Transmit(&huart2,
 	                    tx_buf,
 	                    sizeof(tx_buf),
 	                    500);
-	  HAL_Delay(3000);
 	  //	   ==== 调试接收 5G 模块的应答 ====
 	  	  memset(rx_buf, 0, sizeof(rx_buf));
 	  	  uint16_t rx_len = 0;
@@ -269,6 +212,7 @@ int main(void)
 	  	  {
 	  	      printf("No reply from 5G module\r\n");
 	  	  }
+	  	  //HAL_Delay(2000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
