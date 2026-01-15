@@ -11,15 +11,14 @@
 #include "stm32f1xx_hal.h"
 #include <stdint.h>
 
-#define UART2_FRAME_LEN   15
-
+#define UART2_FRAME_LEN   20
+#define UART3_FRAME_LEN   20
 
 #define UART_PP_BUF_NUM   2
 #define UART_MAX_FRAME_LEN  UART2_FRAME_LEN
-
 // ThreadFlags for Aggregator
 #define FLG_U2_READY   (1U << 0)
-
+#define FLG_U3_READY   (1U << 1)
 typedef struct {
     uint8_t  buf[UART_PP_BUF_NUM][UART_MAX_FRAME_LEN]; // 双缓冲
     uint16_t frame_len;                                // 该路定长
@@ -30,7 +29,8 @@ typedef struct {
 } UartPP_t;
 
 extern UartPP_t g_u2;
-
+extern UartPP_t g_u3;
+extern volatile uint8_t Rxcp_flag;
 // 初始化并启动四路 DMA 接收
 void UartPP_StartAll(void);
 

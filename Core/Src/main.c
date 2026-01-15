@@ -32,6 +32,7 @@
 #include "../../SYSTEM/delay/delay.h"
 #include "../../SYSTEM/sys/sys.h"
 #include "./st25dv/st25dv.h"
+#include "uart_pp.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -85,6 +86,87 @@ uint8_t tx_buf[] =
     0x00, 0x02, 0x0D, 0x0A
 };
 
+uint8_t g_TX_buf[67] = {0};
+void sort_copy_u8(uint8_t *producer1, uint8_t *producer2,uint8_t *consumer)
+{
+    if (producer1 == NULL || consumer == NULL)
+    {
+        return;
+    }
+
+    // producer[0..7] → consumer[4..11]
+    memcpy(&consumer[5], producer1, 8);
+    memcpy(&consumer[13], &producer2[6], 2);
+    memcpy(&consumer[15], &producer2[6], 2);
+    memcpy(&consumer[20], &producer1[8], 6);
+    memcpy(&consumer[26], &producer2[8], 6);
+    memcpy(&consumer[32], &producer1[14], 2);
+    memcpy(&consumer[34], &producer2[14], 2);
+    memcpy(&consumer[36], &producer2[16], 2);
+    memcpy(&consumer[38], &producer2[16], 2);
+}
+
+void pack_u16_and_float_to_u8(uint16_t *u16_arr,
+                              uint8_t   u16_len,
+                              float    *float_arr,
+                              uint8_t   float_len)
+{
+    uint8_t i;
+    uint16_t g_out_index = 43;
+    /* 处理 uint16_t 数组 */
+    for (i = 0; i < u16_len; i++)
+    {
+    	g_TX_buf[g_out_index++] = (u16_arr[i] >> 8) & 0xFF;  // 高字节
+    	g_TX_buf[g_out_index++] =  u16_arr[i] & 0xFF;       // 低字节
+    }
+
+    /* 处理 float 数组 */
+    for (i = 0; i < float_len; i++)
+    {
+        uint8_t int_part;
+        uint8_t frac_part;
+
+        int_part  = (uint8_t)float_arr[i];                     // 整数部分
+        frac_part = (uint8_t)((float_arr[i] - int_part) * 10); // 1 位小数
+
+        g_TX_buf[g_out_index++] = int_part;
+        g_TX_buf[g_out_index++] = frac_part;
+    }
+}
+void test_write()
+{
+	  g_TX_buf[0] = 0x43;
+	  g_TX_buf[1] = 0x4E;
+	  g_TX_buf[2] = 0x00;
+	  g_TX_buf[3] = 0x00;
+	  g_TX_buf[4] = 0x41;
+	  g_TX_buf[17] = 0x0D;
+	  g_TX_buf[18] = 0x0A;
+	  g_TX_buf[19] = 0x42;
+	  g_TX_buf[40] = 0x0D;
+	  g_TX_buf[41] = 0x0A;
+	  g_TX_buf[42] = 0x43;
+	  g_TX_buf[53] = 0x0D;
+	  g_TX_buf[54] = 0x0A;
+	  g_TX_buf[55] = 0x44;
+	  g_TX_buf[56] = 0x01;
+
+	  g_TX_buf[57] = 0x00;
+	  g_TX_buf[58] = 0x01;
+
+	  g_TX_buf[59] = 0x01;
+
+	  g_TX_buf[60] = 0x00;
+	  g_TX_buf[61] = 0x01;
+
+	  g_TX_buf[62] = 0x00;
+
+	  g_TX_buf[63] = 0x00;
+	  g_TX_buf[64] = 0x02;
+
+	  g_TX_buf[65] = 0x0D;
+	  g_TX_buf[66] = 0x0A;
+}
 /* USER CODE END 0 */
 
 /**
@@ -100,6 +182,7 @@ int main(void)
     uint32_t sum;
     float temp;
     float temperature,humidity;
+    float temp_hum[2] = {0};
     char message[50];
 
     int16_t ax, ay, az, gx, gy, gz, tempu;
@@ -144,14 +227,27 @@ int main(void)
   MPU6050_Init();
   //蜂鸣器调试
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET);
-  HAL_Delay(3000);
+  HAL_Delay(1000);
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET);
+  UartPP_StartAll();
+  printf("test\r\n");
+
+
+  const uint8_t * p2= NULL, *p3 =NULL;
+  uint16_t adc_buf[3] = {0};
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  test_write();
+	  if(1 == Rxcp_flag) {
+		  if (g_u2.ready) { p2 = g_u2.buf[g_u2.ready_idx]; g_u2.ready = 0;}
+		  if (g_u3.ready) { p3 = g_u3.buf[g_u3.ready_idx]; g_u3.ready = 0;}
+		  sort_copy_u8(p2,p3,g_TX_buf);
+		  Rxcp_flag = 0;
+	  }
 	  if (g_adc_dma_sta == 1)
 	  	  {
 	  		  /* 循环显示通道4~通道5的结果 */
@@ -163,7 +259,7 @@ int main(void)
 	  				  sum += g_adc_dma_buf[(ADC_NbrOfCHN * i) + j];      /* 相同通道的转换数据累加 */
 	  			  }
 	  			  adcx = sum / (ADC_DMA_BUF_SIZE / ADC_NbrOfCHN);        /* 取平均值 */
-
+	  			  adc_buf[j] = adcx;
 	  			  /* 显示结果 */
 	  			  //printf("channel%d = %d\r\n",j,adcx);
 	  			  temp = (float)adcx * (3.3 / 4096);  /* 获取计算后的带小数的实际电压值，比如3.1111 */
@@ -175,24 +271,25 @@ int main(void)
 	  		  g_adc_dma_sta = 0;                      /* 清除DMA采集完成状态标志 */
 	  		  adc_dma_enable(ADC_DMA_BUF_SIZE);       /* 启动下一次ADC DMA采集 */
 	  	  }
-	  AHT20_Read(&temperature, &humidity);									//读取数据
+	  AHT20_Read(temp_hum, &temp_hum[1]);									//读取数据
+	  pack_u16_and_float_to_u8(adc_buf,3,temp_hum,2);
 	  sprintf(message,"temp:%.1f , hum:%.1f %%\r\n",temperature, humidity); //组合字符串
 	  //printf(message);
 	  MPU6050_Read(&ax, &ay, &az, &gx, &gy, &gz, &tempu);
 	  sprintf(message,"ax:%d, ay:%d, az:%d, gx:%d, gy:%d, gz:%d, tempu:%d\r\n",ax, ay, az, gx, gy, gz, tempu); //组合字符串
 	  //printf(message);
-	  HAL_UART_Transmit(&huart2,
-	                    tx_buf,
-	                    sizeof(tx_buf),
+	  HAL_UART_Transmit(&huart1,
+			  g_TX_buf,
+	                    sizeof(g_TX_buf),
 	                    500);
 	  //	   ==== 调试接收 5G 模块的应答 ====
-	  	  memset(rx_buf, 0, sizeof(rx_buf));
+	  	  memset(g_TX_buf, 0, sizeof(g_TX_buf));
 	  	  uint16_t rx_len = 0;
 	  	  uint32_t tickstart = HAL_GetTick();
 	  	  while ((HAL_GetTick() - tickstart) < 5000)  // 最多等 1 秒
 	  	  {
 	  	      uint8_t ch;
-	  	      if (HAL_UART_Receive(&huart2, &ch, 1, 10) == HAL_OK)
+	  	      if (HAL_UART_Receive(&huart1, &ch, 1, 10) == HAL_OK)
 	  	      {
 	  	          if (rx_len < sizeof(rx_buf) - 1)
 	  	              rx_buf[rx_len++] = ch;
